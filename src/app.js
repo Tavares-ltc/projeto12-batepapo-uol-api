@@ -4,6 +4,7 @@ import { MongoClient } from 'mongodb';
 import dotenv from 'dotenv';
 import dayjs from 'dayjs';
 import joi from 'joi'
+
 dotenv.config();
 
 const app = express();
@@ -21,10 +22,8 @@ mongoClient.connect().then(() => {
 async function isNameAvaliable(name) {
     const someone = await db.collection('participants').findOne({name: name})
     if (someone) {
-        console.log('ja tem')
         return false
     }
-    console.log('não tem')
     return true
 }
 
@@ -76,7 +75,7 @@ app.post("/messages", async (req, res)=> {
     const messageSchema = joi.object({
         to: joi.string().required().empty(),
         text: joi.string().required().empty(),
-        type: joi.string().required() //type só pode ser 'message' ou 'private_message'
+        type: joi.required().valid('message', 'private_message')
     })
 
     const validation = messageSchema.validate(req.body)
@@ -117,14 +116,51 @@ app.get('/messages', async (req, res)=> {
     const limit = Number(req.query.limit)
     const user = req.headers.user
     try {
-        const messages = await db.collection('messages').find({$or: [{type: "message"}, {to: user}, {from: user}]}).sort({_id:-1}).limit(limit).toArray()
+        const messages = await db.collection('messages').find({$or: [{type: "message"}, {type: "status"}, {to: user}, {from: user}]}).sort({_id: 1}).limit(limit).toArray()
         res.send(messages)
     } catch (error) {
         console.log(error)
         res.send('Algo deu errado.')
     }
+})
+
+app.post('/status', async (req, res)=> {
+const user = req.headers.user;
+
+if(await isNameAvaliable(user)){
+    return res.sendStatus(404)
+}
+
+try {
+   await db.collection('participants').updateOne({name: user},
+        {
+            $set: {
+                lastStatus: Date.now()
+            }
+        })
+    res.sendStatus(200)
+    
+} catch (error) {
+    console.log(error)
+    res.sendStatus(404)
+}
     
 })
+
+setInterval(async ()=> {
+    const minimum = (Date.now()) - 10000
+    const offlineUsers= await db.collection('participants').find({lastStatus: {$lt: minimum}}).toArray()
+    offlineUsers.forEach(async (user)=>{
+        const logoutMessage = {from: user.name, to: 'Todos', text: 'sai da sala...', type: 'status', time: `${dayjs().hour()}:${dayjs().minute()}:${dayjs().second()}`}
+        try {
+            await db.collection('participants').deleteOne({_id: user._id})
+            await db.collection('messages').insertOne(logoutMessage)
+        } catch (error) {
+            console.log(error)
+            res.sendStatus(404)
+        }
+    })
+}, 15000)
 
 app.listen(5000, () => {
     console.log('listen on port 5000')
