@@ -113,6 +113,19 @@ app.post("/messages", async (req, res)=> {
     }
 })
 
+app.get('/messages', async (req, res)=> {
+    const limit = Number(req.query.limit)
+    const user = req.headers.user
+    try {
+        const messages = await db.collection('messages').find({$or: [{type: "message"}, {to: user}, {from: user}]}).sort({_id:-1}).limit(limit).toArray()
+        res.send(messages)
+    } catch (error) {
+        console.log(error)
+        res.send('Algo deu errado.')
+    }
+    
+})
+
 app.listen(5000, () => {
     console.log('listen on port 5000')
 })
