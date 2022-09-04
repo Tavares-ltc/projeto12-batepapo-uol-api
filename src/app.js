@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import { MongoClient } from 'mongodb';
+import { MongoClient, ObjectId } from 'mongodb';
 import dotenv from 'dotenv';
 import dayjs from 'dayjs';
 import joi from 'joi'
@@ -86,7 +86,6 @@ app.post("/messages", async (req, res)=> {
 
     try {
       const someone =  await db.collection('participants').find({name: req.headers.user}).toArray()
-      console.log(someone)
       if(someone.length === 0){
         return res.status(404).send('O remetente não existe.')
       }
@@ -145,6 +144,26 @@ try {
     res.sendStatus(404)
 }
     
+})
+
+app.delete('/messages/:id', async (req, res)=> {
+    const id_message  = req.params.id
+    console.log('é')
+    let message
+    try {
+        console.log(id_message)
+        message = await db.collection('messages').findOne({_id: ObjectId(id_message)})
+              res.sendStatus(200)
+    } catch (error) {
+        console.log(error)
+        return res.sendStatus(404)
+    }
+    if(message.from === req.headers.user){
+        await db.collection('messages').deleteOne({_id: ObjectId(id_message)})    
+    }
+    else {
+        return res.sendStatus(401)
+    }
 })
 
 setInterval(async ()=> {
