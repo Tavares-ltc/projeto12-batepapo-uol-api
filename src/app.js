@@ -19,6 +19,12 @@ mongoClient.connect().then(() => {
     db = mongoClient.db('batepapo');
 })
 
+const messageSchema = joi.object({
+    to: joi.string().required().empty(),
+    text: joi.string().required().empty(),
+    type: joi.required().valid('message', 'private_message')
+})
+
 async function isNameAvaliable(name) {
     const someone = await db.collection('participants').findOne({name: name})
     if (someone) {
@@ -72,11 +78,6 @@ app.get("/participants", async (req, res)=> {
 })
 
 app.post("/messages", async (req, res)=> {
-    const messageSchema = joi.object({
-        to: joi.string().required().empty(),
-        text: joi.string().required().empty(),
-        type: joi.required().valid('message', 'private_message')
-    })
 
     const validation = messageSchema.validate(req.body)
     
@@ -148,10 +149,8 @@ try {
 
 app.delete('/messages/:id', async (req, res)=> {
     const id_message  = req.params.id
-    console.log('é')
     let message
     try {
-        console.log(id_message)
         message = await db.collection('messages').findOne({_id: ObjectId(id_message)})
               res.sendStatus(200)
     } catch (error) {
@@ -164,6 +163,42 @@ app.delete('/messages/:id', async (req, res)=> {
     else {
         return res.sendStatus(401)
     }
+})
+
+app.put('/messages/:id', async (req, res)=> {
+    const id_message  = req.params.id
+    const user = req.headers.user
+    let message
+
+    const validation = messageSchema.validate(req.body)
+
+    if(validation.error) {
+        return res.sendStatus(422)
+    }
+
+    try {
+       message = await db.collection('messages').findOne({_id: ObjectId(id_message)})
+       await db.collection('participants').findOne({name: user})
+    } catch (error) {
+        console.log(error)
+        return res.sendStatus(404)
+    }
+
+    if(message.from !== user) {
+        return res.sendStatus(401)
+    }
+try {
+    await db.collection('messages').updateOne({_id: ObjectId(id_message)},{
+        $set: {
+            from: user,
+            to: req.body.to,
+            text: req.body.text,
+            type: req.body.type
+        }
+    })
+} catch (error) {
+    
+}
 })
 
 setInterval(async ()=> {
