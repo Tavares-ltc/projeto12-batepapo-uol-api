@@ -4,15 +4,15 @@ import { MongoClient, ObjectId } from 'mongodb';
 import dotenv from 'dotenv';
 import dayjs from 'dayjs';
 import joi from 'joi'
-
+import { stripHtml } from "string-strip-html";
 dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-//const mongoClient = new MongoClient(process.env.MONGO_URI)
-const mongoClient = new MongoClient("mongodb://localhost:27017");
+const mongoClient = new MongoClient(process.env.MONGO_URI)
+
 
 let db;
 mongoClient.connect().then(() => {
@@ -96,10 +96,10 @@ app.post("/messages", async (req, res)=> {
     }
 
     const dataMessage = {
-        to: req.body.to,
-        text: req.body.text,
-        type: req.body.type,
-        from: req.headers.user,
+        to: stripHtml(req.body.to).result.trim(),
+        text: stripHtml(req.body.text).result.trim(),
+        type: stripHtml(req.body.type).result.trim(),
+        from: stripHtml(req.headers.user).result.trim(),
         time: `${dayjs().hour()}:${dayjs().minute()}:${dayjs().second()}`
     }
 
@@ -167,7 +167,7 @@ app.delete('/messages/:id', async (req, res)=> {
 
 app.put('/messages/:id', async (req, res)=> {
     const id_message  = req.params.id
-    const user = req.headers.user
+    const user = stripHtml(req.headers.user).result
     let message
 
     const validation = messageSchema.validate(req.body)
@@ -190,9 +190,9 @@ app.put('/messages/:id', async (req, res)=> {
 try {
     await db.collection('messages').updateOne({_id: ObjectId(id_message)},{
         $set: {
-            from: user,
-            to: req.body.to,
-            text: req.body.text,
+            from: stripHtml(user).result.trim(),
+            to: stripHtml(req.body.to).result.trim(),
+            text: stripHtml(req.body.text).trim(),
             type: req.body.type
         }
     })
